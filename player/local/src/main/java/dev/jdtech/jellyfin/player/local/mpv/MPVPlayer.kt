@@ -177,6 +177,8 @@ class MPVPlayer(
         // Subs
         MPVLib.setOptionString("sub-scale-with-window", "yes")
         MPVLib.setOptionString("sub-use-margins", "no")
+        MPVLib.setOptionString("sub-font-size", "50")
+        MPVLib.setOptionString("sub-pos", "99")
 
         // Language
         // Split on "-" and use last part because media3 does some weird mapping
@@ -1420,6 +1422,15 @@ class MPVPlayer(
 
     override fun setAudioAttributes(audioAttributes: AudioAttributes, handleAudioFocus: Boolean) {
         TODO("Not yet implemented")
+    }
+
+    /**
+     * Seek to the next or previous subtitle using mpv's sub-seek command.
+     *
+     * @param direction 1 to seek forward to the next subtitle, -1 to seek backward to the previous subtitle.
+     */
+    fun subSeek(direction: Int) {
+        MPVLib.command(arrayOf("sub-seek", direction.toString()))
     }
 
     fun updateZoomMode(enabled: Boolean) {

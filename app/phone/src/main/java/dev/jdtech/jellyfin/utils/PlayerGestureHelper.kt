@@ -66,6 +66,14 @@ class PlayerGestureHelper(
     private var playbackSpeedIncrease: Float = 2f
     private var lastPlaybackSpeed: Float = 0f
 
+    // Sub-seek gesture state (long press + horizontal swipe on MPV player)
+    private var isLongPressActive = false
+    private var longPressStartX = 0f
+    private var subSeekActive = false
+    private var subSeekBucketCount = 0
+    /** Proportional swipe threshold: 2% of playerView width per sub-seek trigger */
+    private val subSeekThresholdRatio = 0.02f
+
     private val screenWidth = Resources.getSystem().displayMetrics.widthPixels
     private val screenHeight = Resources.getSystem().displayMetrics.heightPixels
 
@@ -100,6 +108,13 @@ class PlayerGestureHelper(
                         handleChapterSkip(e)
                     } else {
                         enableSpeedIncrease()
+                        // Track long-press start for potential sub-seek gesture (MPV only)
+                        if (playerView.player is MPVPlayer) {
+                            isLongPressActive = true
+                            longPressStartX = e.x
+                            subSeekActive = false
+                            subSeekBucketCount = 0
+                        }
                     }
                 }
 
@@ -426,6 +441,10 @@ class PlayerGestureHelper(
         activity.binding.progressScrubberLayout.visibility = View.GONE
     }
 
+    private val hideGestureSubSeekOverlayAction = Runnable {
+        activity.binding.gestureSubSeekLayout.visibility = View.GONE
+    }
+
     /** Handles scale/zoom gesture */
     private val zoomGestureDetector =
         ScaleGestureDetector(
@@ -464,6 +483,57 @@ class PlayerGestureHelper(
         isZoomEnabled = enabled
     }
 
+    /**
+     * Cancel the 2x speed increase that was triggered by long press,
+     * restoring the original playback speed.
+     */
+    private fun cancelSpeedIncrease() {
+        if (lastPlaybackSpeed > 0) {
+            playerView.player?.setPlaybackSpeed(lastPlaybackSpeed)
+            lastPlaybackSpeed = 0f
+            activity.binding.gestureSpeedLayout.visibility = View.GONE
+        }
+    }
+
+    /**
+     * Handle horizontal movement during a long press to trigger sub-seek.
+     * Uses a proportional threshold (5% of playerView width) so it adapts
+     * to orientation changes automatically.
+     */
+    @SuppressLint("SetTextI18n")
+    private fun handleSubSeekMove(event: MotionEvent) {
+        if (!isLongPressActive) return
+        val player = playerView.player
+        if (player !is MPVPlayer) return
+
+        val displacement = event.x - longPressStartX
+        val threshold = playerView.width * subSeekThresholdRatio
+        val currentBucket = (abs(displacement) / threshold).toInt()
+
+        if (currentBucket > subSeekBucketCount) {
+            // First time crossing threshold: cancel speed increase and switch to sub-seek mode
+            if (!subSeekActive) {
+                cancelSpeedIncrease()
+                subSeekActive = true
+            }
+
+            val direction = if (displacement > 0) 1 else -1
+            // Fire sub-seek for each new bucket crossed
+            val newSeeks = currentBucket - subSeekBucketCount
+            repeat(newSeeks) {
+                player.subSeek(direction)
+            }
+            subSeekBucketCount = currentBucket
+
+            // Update overlay
+            val arrow = if (direction > 0) "▶" else "◀"
+            activity.binding.gestureSubSeekText.text = "$arrow ×$subSeekBucketCount"
+            activity.binding.gestureSubSeekLayout.visibility = View.VISIBLE
+            // Hide the speed overlay if it was showing
+            activity.binding.gestureSpeedLayout.visibility = View.GONE
+        }
+    }
+
     private fun releaseAction(event: MotionEvent) {
         if (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL) {
             activity.binding.gestureVolumeLayout.apply {
@@ -493,7 +563,20 @@ class PlayerGestureHelper(
                 }
             }
             currentNumberOfPointers = 0
+
+            // Handle sub-seek gesture cleanup
+            if (subSeekActive) {
+                activity.binding.gestureSubSeekLayout.apply {
+                    removeCallbacks(hideGestureSubSeekOverlayAction)
+                    postDelayed(hideGestureSubSeekOverlayAction, 1000)
+                }
+            }
+            // Reset long-press / sub-seek state
+            isLongPressActive = false
+            subSeekActive = false
+            subSeekBucketCount = 0
         }
+        // Restore playback speed on release (only if sub-seek didn't already cancel it)
         if (
             lastPlaybackSpeed > 0 &&
                 (event.action == MotionEvent.ACTION_UP || event.action == MotionEvent.ACTION_CANCEL)
@@ -592,6 +675,10 @@ class PlayerGestureHelper(
                             vbGestureDetector.onTouchEvent(event)
                         if (appPreferences.getValue(appPreferences.playerGesturesSeek))
                             seekGestureDetector.onTouchEvent(event)
+                        // Handle sub-seek on horizontal swipe during long press (MPV only)
+                        if (event.action == MotionEvent.ACTION_MOVE && isLongPressActive) {
+                            handleSubSeekMove(event)
+                        }
                     }
                     2 -> {
                         if (appPreferences.getValue(appPreferences.playerGesturesZoom))
