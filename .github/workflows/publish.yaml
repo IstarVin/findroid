@@ -43,8 +43,8 @@ jobs:
       - name: Rename apk files
         working-directory: ./app/phone/build/outputs/apk/libre/release/
         run: |
-          rename -- 'phone' 'findroid' *.apk
-          rename -- '-release' '' *.apk
+          for f in *.apk; do mv "$f" "${f/phone/findroid}"; done
+          for f in *.apk; do mv "$f" "${f/-release/}"; done
 
       - name: Create release
         uses: softprops/action-gh-release@v2
