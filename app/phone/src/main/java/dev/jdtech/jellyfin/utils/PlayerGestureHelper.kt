@@ -528,7 +528,7 @@ class PlayerGestureHelper(
 
             // Update overlay: arrow reflects current net direction, count is absolute position
             val arrow = if (currentBucket > 0) "▶" else "◀"
-            activity.binding.gestureSubSeekText.text = "$arrow ×${abs(currentBucket)}"
+            activity.binding.gestureSubSeekText.text = if (currentBucket == 0) "x0" else "$arrow ×${abs(currentBucket)}"
             activity.binding.gestureSubSeekLayout.visibility = View.VISIBLE
             // Hide the speed overlay if it was showing
             activity.binding.gestureSpeedLayout.visibility = View.GONE
