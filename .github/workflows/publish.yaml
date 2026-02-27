@@ -13,12 +13,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: '4.0.1'
-          bundler-cache: true
-
       - name: Set up JDK 21
         uses: actions/setup-java@v5
         with:
@@ -32,24 +26,19 @@ jobs:
         uses: timheuer/base64-to-file@v1
         id: findroid_keystore
         with:
-          fileName: 'findroid-keystore.jks'
+          fileName: "findroid-keystore.jks"
           encodedString: ${{ secrets.FINDROID_KEYSTORE }}
 
-      - name: Decode Play API credentials file
-        uses: timheuer/base64-to-file@v1
-        id: findroid_play_api_credentials
-        with:
-          fileName: 'findroid-play-api-credentials.json'
-          encodedString: ${{ secrets.FINDROID_PLAY_API_CREDENTIALS }}
+      - name: Set up Android SDK path
+        run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
-      - name: Build and publish
-        run: bundle exec fastlane publish
+      - name: Build
+        run: ./gradlew clean app:phone:assembleLibreRelease
         env:
           FINDROID_KEYSTORE: ${{ steps.findroid_keystore.outputs.filePath }}
           FINDROID_KEYSTORE_PASSWORD: ${{ secrets.FINDROID_KEYSTORE_PASSWORD }}
           FINDROID_KEY_ALIAS: ${{ secrets.FINDROID_KEY_ALIAS }}
           FINDROID_KEY_PASSWORD: ${{ secrets.FINDROID_KEY_PASSWORD }}
-          FINDROID_PLAY_API_CREDENTIALS: ${{ steps.findroid_play_api_credentials.outputs.filePath }}
 
       - name: Rename apk files
         working-directory: ./app/phone/build/outputs/apk/libre/release/
