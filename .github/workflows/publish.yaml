@@ -32,13 +32,17 @@ jobs:
       - name: Set up Android SDK path
         run: echo "sdk.dir=$ANDROID_HOME" > local.properties
 
+      - name: Create keystore.properties
+        run: |
+          cat > keystore.properties <<EOF
+          storeFile=${{ steps.findroid_keystore.outputs.filePath }}
+          storePassword=${{ secrets.FINDROID_KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.FINDROID_KEY_ALIAS }}
+          keyPassword=${{ secrets.FINDROID_KEY_PASSWORD }}
+          EOF
+
       - name: Build
         run: ./gradlew clean app:phone:assembleLibreRelease
-        env:
-          FINDROID_KEYSTORE: ${{ steps.findroid_keystore.outputs.filePath }}
-          FINDROID_KEYSTORE_PASSWORD: ${{ secrets.FINDROID_KEYSTORE_PASSWORD }}
-          FINDROID_KEY_ALIAS: ${{ secrets.FINDROID_KEY_ALIAS }}
-          FINDROID_KEY_PASSWORD: ${{ secrets.FINDROID_KEY_PASSWORD }}
 
       - name: Rename apk files
         working-directory: ./app/phone/build/outputs/apk/libre/release/
@@ -51,7 +55,7 @@ jobs:
         with:
           draft: true
           files: |
-            ./app/phone/build/outputs/apk/libre/release/findroid-${{ github.ref_name }}-libre-arm64-v8a.apk
-            ./app/phone/build/outputs/apk/libre/release/findroid-${{ github.ref_name }}-libre-armeabi-v7a.apk
-            ./app/phone/build/outputs/apk/libre/release/findroid-${{ github.ref_name }}-libre-x86_64.apk
-            ./app/phone/build/outputs/apk/libre/release/findroid-${{ github.ref_name }}-libre-x86.apk
+            ./app/phone/build/outputs/apk/libre/release/findroid-libre-arm64-v8a.apk
+            ./app/phone/build/outputs/apk/libre/release/findroid-libre-armeabi-v7a.apk
+            ./app/phone/build/outputs/apk/libre/release/findroid-libre-x86_64.apk
+            ./app/phone/build/outputs/apk/libre/release/findroid-libre-x86.apk
