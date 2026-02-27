@@ -70,7 +70,7 @@ class PlayerGestureHelper(
     private var isLongPressActive = false
     private var longPressStartX = 0f
     private var subSeekActive = false
-    private var subSeekBucketCount = 0
+    private var subSeekBucketPos = 0
     /** Proportional swipe threshold: 2% of playerView width per sub-seek trigger */
     private val subSeekThresholdRatio = 0.02f
 
@@ -113,7 +113,7 @@ class PlayerGestureHelper(
                             isLongPressActive = true
                             longPressStartX = e.x
                             subSeekActive = false
-                            subSeekBucketCount = 0
+                            subSeekBucketPos = 0
                         }
                     }
                 }
@@ -508,26 +508,27 @@ class PlayerGestureHelper(
 
         val displacement = event.x - longPressStartX
         val threshold = playerView.width * subSeekThresholdRatio
-        val currentBucket = (abs(displacement) / threshold).toInt()
+        // Use signed bucket position so reversing direction moves the position back
+        val currentBucket = (displacement / threshold).toInt()
 
-        if (currentBucket > subSeekBucketCount) {
-            // First time crossing threshold: cancel speed increase and switch to sub-seek mode
+        if (currentBucket != subSeekBucketPos) {
+            // First time leaving the dead zone: cancel speed increase and switch to sub-seek mode
             if (!subSeekActive) {
                 cancelSpeedIncrease()
                 subSeekActive = true
             }
 
-            val direction = if (displacement > 0) 1 else -1
-            // Fire sub-seek for each new bucket crossed
-            val newSeeks = currentBucket - subSeekBucketCount
-            repeat(newSeeks) {
+            val delta = currentBucket - subSeekBucketPos
+            val direction = if (delta > 0) 1 else -1
+            // Fire sub-seek for each bucket crossed, in the current direction
+            repeat(abs(delta)) {
                 player.subSeek(direction)
             }
-            subSeekBucketCount = currentBucket
+            subSeekBucketPos = currentBucket
 
-            // Update overlay
-            val arrow = if (direction > 0) "▶" else "◀"
-            activity.binding.gestureSubSeekText.text = "$arrow ×$subSeekBucketCount"
+            // Update overlay: arrow reflects current net direction, count is absolute position
+            val arrow = if (currentBucket > 0) "▶" else "◀"
+            activity.binding.gestureSubSeekText.text = "$arrow ×${abs(currentBucket)}"
             activity.binding.gestureSubSeekLayout.visibility = View.VISIBLE
             // Hide the speed overlay if it was showing
             activity.binding.gestureSpeedLayout.visibility = View.GONE
@@ -574,7 +575,7 @@ class PlayerGestureHelper(
             // Reset long-press / sub-seek state
             isLongPressActive = false
             subSeekActive = false
-            subSeekBucketCount = 0
+            subSeekBucketPos = 0
         }
         // Restore playback speed on release (only if sub-seek didn't already cancel it)
         if (
